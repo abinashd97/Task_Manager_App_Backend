@@ -1,16 +1,19 @@
 package com.example.taskmanagement.controller;
 
-
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.example.taskmanagement.entity.User;
 import com.example.taskmanagement.repository.UserRepository;
 import com.example.taskmanagement.utils.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,39 +21,49 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.core.userdetails.UserDetails;
 
 
-
 @RestController
 @RequestMapping("/api/auth")
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class AuthController {
 
-    @Autowired
+	@Autowired
     private UserRepository userRepository;
-
-    @Autowired
+	
+	@Autowired
     private PasswordEncoder passwordEncoder;
-
-    @Autowired
+	
+	@Autowired
     private AuthenticationManager authenticationManager;
-
-    @Autowired
+	
+	@Autowired
     private JwtUtil jwtUtil;
 
-
     @PostMapping("/register")
-    public String register(@RequestBody User user) {
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        userRepository.save(user);
-        return "User registered successfully";
+    public ResponseEntity<Map<String, String>> register(@RequestBody User user) {
+        try {
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
+            userRepository.save(user);
+            
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "User registered successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Registration failed: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
     }
 
     @PostMapping("/login")
-    public String login(@RequestBody User user) throws Exception {
+    public ResponseEntity<Map<String, Object>> login(@RequestBody User user) throws Exception {
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword())
             );
         } catch (BadCredentialsException e) {
-            throw new Exception("Incorrect username or password", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Incorrect username or password");
+            return ResponseEntity.badRequest().body(response);
         }
 
         final UserDetails userDetails = userRepository.findByUsername(user.getUsername())
@@ -59,6 +72,11 @@ public class AuthController {
                 .orElseThrow();
 
         final String jwt = jwtUtil.generateToken(userDetails.getUsername());
-        return jwt;
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", jwt);
+        response.put("user", user.getUsername());
+        
+        return ResponseEntity.ok(response);
     }
 }
